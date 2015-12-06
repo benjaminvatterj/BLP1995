@@ -1,0 +1,57 @@
+Benjamin Vatter J.
+18 November 2015
+benjaminvatterj@gmail.com
+
+=================================================================
+Notes related to the implementation of the BLP demand estimation:
+=================================================================
+
+The implementation follows the guideline create by Aviv Nevo in
+his paper "A Practitioner's Guide to Estimation of Random Coefficients
+Logit Models of Demand".
+
+Variable list and description:
+------------------------------
+theta1 : (alpha [price coefficient], beta [characteristics coefficient])
+         Linear parameters of demand
+
+theta2 : (Pi [demographic coefficients], Gamma [additional individual characteristics coefficient])
+         nonlinear parameters of demand.
+
+PD : distribution of the demographic variables
+
+PV : distribution of the additional individual characteristics variables
+
+X1 : variables that enter linearly and are common to all individuals equally
+
+X2 : variables that enter the nonlinear part and that will have random coefficients
+
+Z  : Instrument matrix
+
+v  : Additional individual characteristics vector.
+
+D  : Individual demographic vector.
+
+delta : mean valuation of products in each market
+
+
+Algorithm:
+----------
+A rough sketch of the algorithm is as follows
+
+0) Initialization: Sample individual characteristics and prepare data.
+1) While (GMM objective function has not converged):
+    1.1) Draw theta2 (from optimizer)
+    1.2) Calculate theta1 by solving the first order condition of the problem.
+    1.3) While (delta fixed point hasn't converged):
+        1.3.1) Compute the next delta in the series by simulating the market shares
+    1.4) Use found delta and theta1 to calculate the GMM objective.
+
+
+TODO (future):
+--------------
+1) Add Bertrand marginal costs calculation
+2) Add elasticity calculations
+4) Optimize memory allocations
+3) Improve the Jacobian algorithm
+4) Improve the Anderson acceleration algorithm (transform to QR decomposition and update)

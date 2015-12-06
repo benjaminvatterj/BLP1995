@@ -1,0 +1,40 @@
+# This file has the resulting output of a run of test_mul.py
+
+1) NM - serial unique time : 554.303642 sec
+2) NM - serial split time: 575.053809 sec
+3) NM - parallel time: 383.507915 sec
+4) NM - Accelerated serial unique time : 171.489948 sec
+5) NM - Accelerated serial split time: 189.641682 sec
+6) NM - Accelerated parallel time: 127.108987 sec
+7) BFGS - serial unique time : 320.673312 sec
+8) BFGS - serial split time: 244.809736 sec
+9) BFGS - parallel time: 170.952906 sec
+10) BFGS - Accelerated serial unique time : 396.989000 sec
+11) BFGS - Accelerated serial split time: 172.408478 sec
+12) BFGS - Accelerated parallel time: 135.019165 sec
+theta2:
+1) [ 0.29628118  1.5462634 ]
+2) [ 0.29628118  1.5462634 ]
+3) [ 0.29628118  1.5462634 ]
+4) [ 0.29628111  1.54626355]
+5) [ 0.2962811   1.54626356]
+6) [ 0.2962811   1.54626356]
+7) [ 0.6250707   0.73938276]
+8) [ 0.62507184  0.73918935]
+9) [ 0.62507184  0.73918935]
+10) [ 0.625072    0.73930366]
+11) [ 0.57590959  0.74035885]
+12) [ 0.57590959  0.74035885]
+theta1:
+1) [-0.54602775  1.53368371]
+2) [-0.54602775  1.53368372]
+3) [-0.54602775  1.53368372]
+4) [-0.54602775  1.5336838 ]
+5) [-0.54602775  1.5336838 ]
+6) [-0.54602775  1.5336838 ]
+7) [-0.54277397  1.24763954]
+8) [-0.54277266  1.24758145]
+9) [-0.54277266  1.24758145]
+10) [-0.54277345  1.24761609]
+11) [-0.54162868  1.22788672]
+12) [-0.54162868  1.22788672]
