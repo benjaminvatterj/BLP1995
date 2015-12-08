@@ -47,11 +47,10 @@ A rough sketch of the algorithm is as follows
         1.3.1) Compute the next delta in the series by simulating the market shares
     1.4) Use found delta and theta1 to calculate the GMM objective.
 
-
 TODO (future):
 --------------
 1) Add Bertrand marginal costs calculation
 2) Add elasticity calculations
-4) Optimize memory allocations
-3) Improve the Jacobian algorithm
-4) Improve the Anderson acceleration algorithm (transform to QR decomposition and update)
+3) Improve the Anderson acceleration algorithm (transform to QR decomposition and update)
+4) Further improve memory allocations.
+5) Maybe move the fixed point calculations to C?

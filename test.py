@@ -12,6 +12,15 @@ to work with. Nevertheless, if run
 a couple of times, it is likely to observe
 the precision of the implemented algorithm.
 
+
+Note:
+----
+Don't expect the test to work every
+time. There is a lot fine-tuning to
+do in each run and it is possible that
+this automatic run will fail due to this
+lack of tuning. The system will provide
+more information on errors if they occur.
 """
 
 

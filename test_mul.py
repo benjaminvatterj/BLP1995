@@ -4,25 +4,33 @@ from test import Faker
 from time import time
 
 """
-
 This file tests the different
 options of parallelization
 of the delta fixed points
 
+
+Note:
+----
+Don't expect the test to work every
+time. There is a lot fine-tuning to
+do in each run and it is possible that
+this automatic run will fail due to this
+lack of tuning. The system will provide
+more information on errors if they occur.
 """
 
 
 if __name__ == "__main__":
 
     market = Faker()
-    market.genData(150, 10, 3, 500)
+    market.genData(150, 10, 6, 500)
     a = np.random.rand(market.X2.shape[1])
-    bounds = [(-5, 5) for x in a]
+    bounds = [(-3, 3) for x in a]
 
     # Test serial unique convergence
     blp = BLP(market.X1, market.X2, market.Z, market.M, market.S)
     blp.prepareSample()
-    population = blp.population
+    population = blp.population.copy()
     population_size = blp.population_size  # Keep these for easier comparison
     print("Starting picard serial...")
     start1 = time()
@@ -165,6 +173,7 @@ if __name__ == "__main__":
     print("12) BFGS - Accelerated parallel time: %f sec" % (end12 - start12))
 
     print("theta2:")
+    print("Real)  %s" % market.sigma)
     print("1) %s" % res1.theta2)
     print("2) %s" % res2.theta2)
     print("3) %s" % res3.theta2)
@@ -179,6 +188,7 @@ if __name__ == "__main__":
     print("12) %s" % res12.theta2)
 
     print("theta1:")
+    print("Real) %s %s" % (market.alpha, market.beta))
     print("1) %s" % res1.theta1)
     print("2) %s" % res2.theta1)
     print("3) %s" % res3.theta1)
