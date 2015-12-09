@@ -134,7 +134,7 @@ class Faker:
 
         # -- Store -- #
         self.X1 = np.hstack((P.reshape(-1, 1), X[:, (nonlinear_chars):]))
-        self.X2 = X[:, :nonlinear_chars]
+        self.X2 = np.hstack((P.reshape(-1, 1), X[:, :nonlinear_chars]))
         self.Z = Z
         self.M = M
         self.S = S
@@ -147,7 +147,7 @@ class Faker:
 
 if __name__ == "__main__":
     market = Faker()
-    market.genData(100, 15, 6, 500)
+    market.genData(50, 15, 6, 500)
     blp = BLP(market.X1, market.X2, market.Z, market.M, market.S)
     blp.prepareSample()
     a = np.random.rand(market.X2.shape[1])

@@ -49,8 +49,7 @@ A rough sketch of the algorithm is as follows
 
 TODO (future):
 --------------
-1) Add Bertrand marginal costs calculation
-2) Add elasticity calculations
-3) Improve the Anderson acceleration algorithm (transform to QR decomposition and update)
-4) Further improve memory allocations.
-5) Maybe move the fixed point calculations to C?
+1) Add Monte-Carlos simulation of Bertrand pricing.
+2) Improve the Anderson acceleration algorithm (transform to QR decomposition and update)
+3) Further improve memory allocations.
+4) Maybe move the fixed point calculations to C?

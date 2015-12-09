@@ -1,7 +1,7 @@
 # Berry Levinsohn Pakes 1995 algorithm implementation
 This repository provides a class implementation of BLP(1995)
 for Python 3.+, based upon several guiding principles written
-by Aviv Nevo in his famous Practitioner Guide.
+by Aviv Nevo in his well known Practitioner Guide.
 
 Some of the features of this BLP implementations are:
 
@@ -16,6 +16,9 @@ Some of the features of this BLP implementations are:
   3. Separating by groups and solving in parallel on a multiprocessor computer.
 5. Optional Anderson acceleration of the delta fixed-point.
 6. A lot of comments to guide anyone who wants to implement his one version.
+
+However, the algorithm assumes no correlation between the individual taste coefficients, that is Sigma is a diagonal as in the Nevo guide, which is relatively standard in the literature.
+
 
 Additionally to the main BLP.py class, the file test.py provides
 a fairly random Monte-Carlos simulator that generate an unbalanced panel

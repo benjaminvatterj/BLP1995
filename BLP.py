@@ -37,6 +37,121 @@ class BLPResult:
         self.success = res.success
         self.message = res.message
 
+    def dSdP(self, price_theta1_index=[0], price_theta2_index=[0]):
+        """
+        Calculate the matrix of
+        derivatives of shares over
+        prices
+
+        Arguments:
+        ---------
+        price_theta1_index: list, optional
+            index of the prices variables in the linear parameters.
+            It allows more then one, but they must not overlap (such as market specific price coefficient)
+            defaults to 0.
+        price_theta2_index: list, optional
+            index of the prices variables in the non-linear parameters.
+            defaults to 0.
+        """
+        delta = blpds.X1.dot(self.theta1)
+        nonlin = blpds.X2.shape[1]
+        v = blpds.population["v"] * self.theta2[:nonlin]
+        if blpds.population["D"] is not []:
+            D = np.dot(blpds.population["D"], self.theta2[nonlin:].reshape(-1, nonlin))
+        else:
+            D = 0
+
+        # This is now a matrix of dimensions N x population
+        x = blpds.X2.dot((v + D).T)
+
+        index = np.zeros(blpds.X1.shape[0], 'int')
+        index[1:] = blpds.M_filter.cumsum()[:-1]  # an index for the sum of market shares
+
+        # Estimate market shares
+        ex = np.exp(delta.reshape(-1, 1) + x)
+        summed = ex.cumsum(axis=0)  # Cumulative sum over market per individual
+        summed = summed[blpds.M_filter, :]  # Keep only the sum per market
+        summed[1:, :] = summed[1:, :] - summed[:-1, :]  # Fixed the cumulative sum
+        ex = ex / (1.0 + summed[index, :])  # Here the market_filter is used as index. Now each column has the share per individual
+
+        self.s = ex.sum(axis=1) / blpds.population["v"].shape[0]  # Store estimated market share
+        # Set derivative matrix
+        uq, c = np.unique(blpds.M, return_counts=True)
+        self.dsdp = np.zeros((blpds.X1.shape[0], np.max(c)))
+        pos = 0
+
+        # Loop on markets
+        for i, j in enumerate(uq):
+            # Get alphas
+            common_alpha = np.nonzero(blpds.X1[blpds.M == j, price_theta1_index])
+            nonlin_alpha = np.nonzero(blpds.X2[blpds.M == j, price_theta2_index])
+            nonlin_vi = blpds.population["v"][:, price_theta2_index]
+            if len(price_theta1_index) > 1:
+                common_alpha = self.theta1[price_theta1_index][common_alpha[1]]
+                nonlin_vi = nonlin_vi[:, nonlin_alpha[1]]
+                nonlin_alpha = self.theta2[price_theta2_index][nonlin_alpha[1]]
+            else:
+                common_alpha = np.repeat(self.theta1[price_theta1_index], len(common_alpha[0])).reshape(-1, 1)
+                nonlin_vi = np.tile(nonlin_vi.reshape(-1, 1), (1, len(nonlin_alpha[0])))
+                nonlin_alpha = np.repeat(self.theta2[price_theta2_index], len(nonlin_alpha[0])).reshape(-1, 1)
+
+            common_alpha = common_alpha + nonlin_alpha * nonlin_vi.T  # the total random coefficient of price
+            self.dsdp[pos:pos + c[i], :c[i]] = np.diag((common_alpha * ex[blpds.M == j, :]).sum(axis=1)) / blpds.population["v"].shape[0]
+            self.dsdp[pos:pos + c[i], :c[i]] -= (common_alpha * ex[blpds.M == j, :]).dot(ex[blpds.M == j, :].T) / blpds.population["v"].shape[0]
+            pos += c[i]
+
+        return self.dsdp
+
+    def bertrand(self, ownership, price_theta1_index=[0]):
+        """
+        Solves for the marginal costs of a
+        Bertrand oligopoly.  In each market
+        a multiproduct oligopolistic solves
+        its FOCs to determine price accounting
+        for substitution pattern among his products.
+        dSdP must be calculated before using this
+        function.
+
+        Arguments:
+        ----------
+        ownership : ndarray
+            A vector indicating the owner of
+            each observation in each market.
+        price_theta1_index : list, optional
+            index of the prices variables in the linear parameters.
+            It allows more then one, but they must not overlap (such as market specific price coefficient)
+            defaults to 0.
+        """
+
+        if ownership.shape[0] != blpds.M.shape[0]:
+            raise BLPException("Ownership vector must have the same dimensions as the data provided")
+
+        uq, c = np.unique(blpds.M, return_counts=True)
+        self.mc = np.zeros(blpds.X1.shape[0])
+        pos = 0
+
+        for i, j in enumerate(uq):
+            own = ownership[blpds.M == j]
+            own_uq = np.unique(own)
+            sub_c = np.zeros(c[i])
+            sub_s = self.s[blpds.M == j]
+            sub_p = blpds.X1[blpds.M == j, price_theta1_index]
+            if len(price_theta1_index) > 1:
+                sub_p = sub_p.sum(axis=1)
+            sub_dsdp = self.dsdp[blpds.M == j, :]
+
+            for k in own_uq:
+                dsdp = sub_dsdp[own == k, :][:, own == k]
+                if dsdp.shape[0] > 1:
+                    sub_c[own == k] = sub_p[own == k] + np.linalg.solve(dsdp.T, sub_s[own == k])
+                else:
+                    sub_c[own == k] = sub_p[own == k] + sub_s[own == k] / dsdp
+
+            self.mc[pos:pos + c[i]] = sub_c
+            pos += c[i]
+
+        return self.mc
+
 
 class BLPDS:
 
@@ -122,7 +237,10 @@ class BLP:
         blpds.X2 = X2
         blpds.Z = Z
         self.N = X1.shape[0]
-        self.nonlin = X2.shape[1]
+        if X2.ndim > 1:
+            self.nonlin = X2.shape[1]
+        else:
+            self.nonlin = 1
 
         # Market-id: Check for ordering and normalize
         if not np.all(np.sort(M) == M):
@@ -147,6 +265,9 @@ class BLP:
         self.prev_v = 0  # the previous value function
         self.prev_x = []  # the previous theta2 vector
         self.jac_required = False
+        self.punish = False
+        self.prev_iterations = 0
+        self.stuck_count = 0
         # v: taste parameters, D: demographics
         blpds.population = {"v": [], "D": []}
 
@@ -338,7 +459,10 @@ class BLP:
         else:
             D = 0
         # This is now a matrix of dimensions N x population
-        x = blpds.X2[start:end, :].dot((v + D).T)
+        if self.nonlin > 1:
+            x = blpds.X2[start:end, :].dot((v + D).T)
+        else:
+            x = np.expand_dims(blpds.X2[start:end], axis=1).dot((v + D).T)
 
         # 2) Loop on delta until convergence
         distance = 1
@@ -434,7 +558,10 @@ class BLP:
                 dem_size = 0
 
             for k in range(self.nonlin):
-                L = ex * blpds.X2[start:end, k].reshape(-1, 1)
+                if self.nonlin > 1:
+                    L = ex * blpds.X2[start:end, k].reshape(-1, 1)
+                else:
+                    L = ex * blpds.X2[start:end].reshape(-1, 1)
                 sumL = L.cumsum(axis=0)[blpds.M_filter[start:end], :]
                 sumL[1:, :] = sumL[1:, :] - sumL[:-1, :]
                 L -= ex * sumL[index, :]
@@ -444,7 +571,6 @@ class BLP:
 
             # Iterate over markets and solve the inverse. Note that in the trade-off between
             # memory usage and performance, I chose to privilege memory in this scenario.
-
             for j in np.arange(start=blpds.M[start], stop=blpds.M[end-1]+1):
                 s = ex[blpds.M[start:end] == j, :]
 
@@ -496,28 +622,35 @@ class BLP:
         out : float
               objective function value.
         """
-        if self.parallel:
-            res = self.pool.starmap(self._deltas, zip(repeat(theta2), self.par_cuts), self.chunksize)
-            if self.jac_required:
-                delta = np.hstack([x[0] for x in res])
-                ddelta = np.vstack([x[1] for x in res])
-            else:
-                delta = np.hstack(res)
-        else:
-            if len(self.par_cuts) == 1:
-                if not self.jac_required:
-                    delta = self._deltas(theta2)
+        try:
+            if self.parallel:
+                res = self.pool.starmap(self._deltas, zip(repeat(theta2), self.par_cuts), self.chunksize)
+                if self.jac_required:
+                    delta = np.hstack([x[0] for x in res])
+                    ddelta = np.vstack([x[1] for x in res])
                 else:
-                    delta, ddelta = self._deltas(theta2)
+                    delta = np.hstack(res)
             else:
-                delta = np.zeros(blpds.X1.shape[0])
-                ddelta = np.zeros((blpds.X1.shape[0], self.nonlin))
-
-                for j in self.par_cuts:
+                if len(self.par_cuts) == 1:
                     if not self.jac_required:
-                        delta[j[0]:j[1]] = self._deltas(theta2, j)
+                        delta = self._deltas(theta2)
                     else:
-                        delta[j[0]:j[1]], ddelta[j[0]:j[1], :] = self._deltas(theta2, j)
+                        delta, ddelta = self._deltas(theta2)
+                else:
+                    delta = np.zeros(blpds.X1.shape[0])
+                    ddelta = np.zeros((blpds.X1.shape[0], self.nonlin))
+
+                    for j in self.par_cuts:
+                        if not self.jac_required:
+                            delta[j[0]:j[1]] = self._deltas(theta2, j)
+                        else:
+                            delta[j[0]:j[1]], ddelta[j[0]:j[1], :] = self._deltas(theta2, j)
+        except BLPException:
+            if self.punish and not self.jac_required:
+                print("Punishing iteration")
+                return 10000
+            else:
+                raise
 
         # Replace initial delta
         np.copyto(self.initial_delta, delta)
@@ -552,17 +685,23 @@ class BLP:
                       self.v - self.prev_v,
                       self.v,
                       time() - self.iter_timer))
+
+                if self.stuck_count > 2:
+                    raise BLPException("Solver is not making any progress. Aborting.")
+                elif self.prev_iterations == self.iterations:
+                    self.stuck_count += 1
             self.prev_v = self.v
             self.prev_x = xk
             self.iter_timer = time()
+            self.prev_iterations = self.iterations
             stdout.flush()
         return
 
     def solve(self, initial_theta2, method="Nelder-Mead",
               ftol=1e-5, xtol=1e-5, maxiter=1e5, maxfev=1e5,
-              bounds=None, delta_tol=1e-5, delta_max_iter=1e4,
-              adaptive_delta_tol=True, delta_method="picard",
-              verbose=True):
+              bounds=None, punish=False, solver_options={},
+              delta_tol=1e-5, delta_max_iter=1e4, adaptive_delta_tol=True,
+              delta_method="picard", verbose=True):
         """
         Runs the BLP estimation procedure.
 
@@ -589,6 +728,15 @@ class BLP:
         bounds : tuple, optional
                 The bounds to use in the L-BFGS-B
                 algorithm.
+        punish: boolean, optional
+                Only for Nelder-Mead, whether to
+                punish evaluations that undefine
+                the objective function or to raise
+                an exception. The default is to
+                raise an exception.
+        solver_otions: dictionary, optional
+                Any additional solver option,
+                as would be passed to scipy.optimize.minimize
         delta_tol : float, optional
                 tolerance of delta fixed point
         delta_max_iter : int, optional
@@ -631,6 +779,8 @@ class BLP:
         self.max_delta_loop = delta_max_iter
         self.iter_timer = time()
         self.verbose = verbose
+        self.punish = punish
+        self.stuck_count = 0
 
         if self.parallel:
             self.pool = multiprocessing.Pool(self.threads)
@@ -639,14 +789,16 @@ class BLP:
             print("Solving using Nelder-Mead and %s fixed point" % delta_method)
             self._iter_print(self.prev_x)
             self.jac_required = False
+            options = {
+                    'maxiter': maxiter,
+                    'xtol': xtol,
+                    'ftol': ftol,
+                    'maxfev': maxfev
+                    }
+            options.update(solver_options)
             res = minimize(self._objectiveFunction, initial_theta2,
                            method="Nelder-Mead", tol=ftol,
-                           options={
-                            'maxiter': maxiter,
-                            'xtol': xtol,
-                            'ftol': ftol,
-                            'maxfev': maxfev
-                            },
+                           options=options,
                            callback=self._iter_print)
             delta = self._deltas(res.x)
         elif method == "BFGS":
@@ -655,12 +807,15 @@ class BLP:
             print("Solving using L-BFGS-B and %s fixed point" % delta_method)
             self._iter_print(self.prev_x)
             self.jac_required = True
+            options = {
+                    'maxiter': maxiter,
+                    'gtol': ftol,
+                    'ftol': ftol,
+                   }
+            options.update(solver_options)
             res = minimize(self._objectiveFunction, initial_theta2,
                            method="L-BFGS-B", tol=ftol, jac=True,
-                           options={
-                            'maxiter': maxiter,
-                            'gtol': ftol,
-                           },
+                           options=options,
                            bounds=bounds,
                            callback=self._iter_print)
             delta, ddelta = self._deltas(res.x)
